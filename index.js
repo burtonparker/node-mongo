@@ -1,5 +1,6 @@
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert').strict;
+const dboper = require('./operations');
 
 const url = 'mongodb://localhost:27017/';
 const dbname = 'nucampsite';
@@ -20,18 +21,33 @@ MongoClient.connect(url, { useUnifiedTopology: true }, (err, client) => { // lat
         assert.strictEqual(err, null);
         console.log('Dropped Collection', result);
 
-        const collection = db.collection('campsites');
+        // no longer used thanks to dboper: const collection = db.collection('campsites');
 
-        collection.insertOne({name: "Breadcrumb Trail Campground", description: "Test"},
-        (err, result) => {
-            assert.strictEqual(err, null);
-            console.log('Insert Document:', result.ops); // short for operations
+        dboper.insertDocument(db, {name: "Breadcrumb Trail Campground", description: "Test"},
+            'campsites', result => { // defining a function here but NOT calling it, important programming concept with callbacks
+            console.log('Insert Document:', result.ops); // short for operations. also check commit history because we deleted some important shit below here.
 
-            collection.find().toArray((err, docs) => { // leaving find() empty will find ALL the documents, there are ways to refine this by supplying a filtering condition as an argument... toArray converts the documents into an array of objects. cool!
-                assert.strictEqual(err, null);
+            dboper.findDocuments(db, 'campsites', docs => {
                 console.log('Found Documents:', docs);
 
-                client.close(); // closes the client's connection to the db server
+                dboper.updateDocument(db, { name: "Breadcrumb Trail Campground" }, 
+                    { description: "Updated Test Description"}, 'campsites', // here we are looking for a name that matches Breadcrumb Trail Campground then updating it's description - only works for Breadcrumb...
+                    result => {
+                        console.log('Updated Document Count:', result.result.nModified);
+
+                        dboper.findDocuments(db, 'campsites', docs => {
+                            console.log('Found Documents:', docs);
+
+                            dboper.removeDocument(db, { name: "Breadcrumb Trail Campground" },
+                                'campsites', result => {
+                                    console.log('Deleted Document Count:', result.deletedCount);
+
+                                    client.close();
+                                }
+                            );
+                        });
+                    }
+                );
             });
         });
     });
